@@ -17,11 +17,12 @@ import {
 
 const API_BASE = '/api';
 
-export async function fetchProducts(params?: { category?: string; featured?: boolean; search?: string }): Promise<Product[]> {
+export async function fetchProducts(params?: { category?: string; featured?: boolean; search?: string; includeHidden?: boolean }): Promise<Product[]> {
   const query = new URLSearchParams();
   if (params?.category) query.append('category', params.category);
   if (params?.featured) query.append('featured', 'true');
   if (params?.search) query.append('search', params.search);
+  if (params?.includeHidden) query.append('includeHidden', 'true');
 
   const res = await fetch(`${API_BASE}/products?${query.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch products');
@@ -348,15 +349,24 @@ export async function sendChatMessage(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; text: string }>
 ): Promise<{ text: string }> {
-  const res = await fetch(`${API_BASE}/ai/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to communicate with Munachiama AI');
+  try {
+    const res = await fetch(`${API_BASE}/ai/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      console.error('[AI Chat API Error] Response not OK:', res.status, res.statusText, errData);
+      throw new Error(errData.error || `Server error (${res.status}): Failed to communicate with Munachiama AI`);
+    }
+
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    console.error('[AI Chat API Fetch Error]:', err);
+    throw err;
   }
-  return res.json();
 }
 

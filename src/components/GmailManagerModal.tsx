@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatErrorMessage } from '../utils/formatError';
 import {
   Mail,
   Send,
@@ -174,7 +175,7 @@ export const GmailManagerModal: React.FC<GmailManagerModalProps> = ({
       loadMessages();
     } catch (err: any) {
       console.error('Gmail send error:', err);
-      setSendError(err.message || 'Failed to send email via Gmail API.');
+      setSendError(formatErrorMessage(err, 'Failed to send email via Gmail API.'));
     } finally {
       setSending(false);
     }

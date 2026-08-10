@@ -5,7 +5,10 @@ export type CategorySlug =
   | 'mocktails-cocktails'
   | 'parfaits'
   | 'healthy-salads'
-  | 'luxury-gifting';
+  | 'luxury-gifting'
+  | 'hampers'
+  | 'event-catering'
+  | string;
 
 export interface Category {
   id: string;
@@ -28,6 +31,9 @@ export interface Product {
   image_url: string;
   featured: boolean;
   available: boolean;
+  availability?: 'AVAILABLE' | 'OUT_OF_STOCK' | 'HIDDEN';
+  minimum_order_quantity?: string | number;
+  display_order?: number;
   ingredients?: string[];
   serves_text?: string;
   created_at: string;

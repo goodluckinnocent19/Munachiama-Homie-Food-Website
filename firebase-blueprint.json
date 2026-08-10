@@ -1,0 +1,291 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Culinary menu product offered by Munachiama Foods",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "price_text": { "type": "string" },
+        "image_url": { "type": "string" },
+        "featured": { "type": "boolean" },
+        "available": { "type": "boolean" },
+        "ingredients": { "type": "array" },
+        "serves_text": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "description"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "description": { "type": "string" },
+        "image_url": { "type": "string" },
+        "item_count": { "type": "number" }
+      },
+      "required": ["id", "name", "slug"]
+    },
+    "Enquiry": {
+      "title": "Enquiry",
+      "description": "Customer order or catering enquiry request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customer_name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "event_type": { "type": "string" },
+        "product_category": { "type": "string" },
+        "event_date": { "type": "string" },
+        "location": { "type": "string" },
+        "quantity": { "type": "string" },
+        "budget": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "payment_status": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "customer_name", "phone", "event_type", "location"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer catering or bulk purchase order record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customer_id": { "type": "string" },
+        "customer_name": { "type": "string" },
+        "customer_phone": { "type": "string" },
+        "customer_email": { "type": "string" },
+        "order_type": { "type": "string" },
+        "items_summary": { "type": "string" },
+        "delivery_date": { "type": "string" },
+        "delivery_location": { "type": "string" },
+        "quantity": { "type": "string" },
+        "budget": { "type": "string" },
+        "total_amount": { "type": "number" },
+        "status": { "type": "string" },
+        "payment_status": { "type": "string" },
+        "payment_plan_id": { "type": "string" },
+        "notes": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "customer_name", "customer_phone"]
+    },
+    "PaymentPlan": {
+      "title": "PaymentPlan",
+      "description": "Volume buyer installment plan schedule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "order_id": { "type": "string" },
+        "customer_name": { "type": "string" },
+        "customer_phone": { "type": "string" },
+        "customer_email": { "type": "string" },
+        "plan_type": { "type": "string" },
+        "total_amount": { "type": "number" },
+        "number_of_installments": { "type": "number" },
+        "status": { "type": "string" },
+        "approved_by": { "type": "string" },
+        "approved_at": { "type": "string" },
+        "notes": { "type": "string" },
+        "payment_instructions": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "order_id", "total_amount", "number_of_installments"]
+    },
+    "Installment": {
+      "title": "Installment",
+      "description": "Single installment milestone within a payment plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "payment_plan_id": { "type": "string" },
+        "order_id": { "type": "string" },
+        "installment_number": { "type": "number" },
+        "amount": { "type": "number" },
+        "due_date": { "type": "string" },
+        "payment_status": { "type": "string" },
+        "paid_at": { "type": "string" },
+        "payment_reference": { "type": "string" },
+        "verified_by": { "type": "string" },
+        "verification_date": { "type": "string" },
+        "notes": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "payment_plan_id", "order_id", "installment_number", "amount"]
+    },
+    "PaymentSubmission": {
+      "title": "PaymentSubmission",
+      "description": "Bank transfer payment proof submitted by customer for review",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "order_id": { "type": "string" },
+        "installment_id": { "type": "string" },
+        "payment_plan_id": { "type": "string" },
+        "customer_name": { "type": "string" },
+        "customer_phone": { "type": "string" },
+        "payment_method": { "type": "string" },
+        "amount_expected": { "type": "number" },
+        "amount_submitted": { "type": "number" },
+        "payment_reference": { "type": "string" },
+        "bank_name": { "type": "string" },
+        "payment_date": { "type": "string" },
+        "proof_url": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string" },
+        "verified_by": { "type": "string" },
+        "verified_at": { "type": "string" },
+        "rejection_reason": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "order_id", "payment_reference", "amount_submitted"]
+    },
+    "PaymentAuditLog": {
+      "title": "PaymentAuditLog",
+      "description": "Audit trail for all payment verification and installment actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "admin_id": { "type": "string" },
+        "admin_username": { "type": "string" },
+        "action": { "type": "string" },
+        "order_id": { "type": "string" },
+        "payment_plan_id": { "type": "string" },
+        "installment_id": { "type": "string" },
+        "submission_id": { "type": "string" },
+        "previous_status": { "type": "string" },
+        "new_status": { "type": "string" },
+        "note": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "action", "timestamp"]
+    },
+    "CustomerNotification": {
+      "title": "CustomerNotification",
+      "description": "Notifications generated for order and payment updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "order_id": { "type": "string" },
+        "customer_phone": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "whatsapp_link": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "order_id", "title", "message"]
+    },
+    "GalleryItem": {
+      "title": "GalleryItem",
+      "description": "Showcase photo item in gallery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "image_url": { "type": "string" },
+        "caption": { "type": "string" }
+      },
+      "required": ["id", "title", "image_url"]
+    },
+    "FAQItem": {
+      "title": "FAQItem",
+      "description": "Frequently asked question entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string" },
+        "answer": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "question", "answer"]
+    },
+    "BusinessSettings": {
+      "title": "BusinessSettings",
+      "description": "Global settings for Munachiama Foods brand",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "socialHandle": { "type": "string" },
+        "bankName": { "type": "string" },
+        "accountName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["businessName", "phone", "whatsapp"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Menu products catalog"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Product categories"
+    },
+    "/enquiries/{enquiryId}": {
+      "schema": { "$ref": "#/entities/Enquiry" },
+      "description": "Customer order and event enquiries"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Customer orders"
+    },
+    "/payment_plans/{planId}": {
+      "schema": { "$ref": "#/entities/PaymentPlan" },
+      "description": "Volume buyer installment schedules"
+    },
+    "/installments/{installmentId}": {
+      "schema": { "$ref": "#/entities/Installment" },
+      "description": "Milestone installments"
+    },
+    "/payment_submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/PaymentSubmission" },
+      "description": "Customer bank transfer payment proofs"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/PaymentAuditLog" },
+      "description": "Admin payment audit trail"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/CustomerNotification" },
+      "description": "Customer notifications"
+    },
+    "/gallery/{galleryId}": {
+      "schema": { "$ref": "#/entities/GalleryItem" },
+      "description": "Brand gallery showcase"
+    },
+    "/faqs/{faqId}": {
+      "schema": { "$ref": "#/entities/FAQItem" },
+      "description": "Frequently asked questions"
+    },
+    "/business_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/BusinessSettings" },
+      "description": "Business settings configuration"
+    }
+  }
+}

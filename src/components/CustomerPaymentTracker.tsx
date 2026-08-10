@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { trackOrderAndPayment, submitBankTransfer } from '../services/api';
+import { formatErrorMessage } from '../utils/formatError';
 import { Order, Enquiry, PaymentPlan, Installment, PaymentSubmission, CustomerNotification } from '../types';
 import {
   Search,
@@ -69,7 +70,7 @@ export const CustomerPaymentTracker: React.FC<CustomerPaymentTrackerProps> = ({ 
       setNotifications(res.notifications);
       setSummary(res.summary);
     } catch (err: any) {
-      setError(err.message || 'Order record not found. Please check your Order or Enquiry ID.');
+      setError(formatErrorMessage(err, 'Order record not found. Please check your Order or Enquiry ID.'));
       setOrderData(null);
     } finally {
       setLoading(false);
@@ -128,7 +129,7 @@ export const CustomerPaymentTracker: React.FC<CustomerPaymentTrackerProps> = ({ 
       // Reload updated tracking data
       await loadTrackingData(activeOrderId);
     } catch (err: any) {
-      alert(err.message || 'Failed to submit payment proof.');
+      alert(formatErrorMessage(err, 'Failed to submit payment proof.'));
     } finally {
       setSubmitting(false);
     }

@@ -19,8 +19,39 @@ import { fetchProducts, fetchCategories, fetchFAQs, fetchGallery, fetchBusinessS
 import { INITIAL_CATEGORIES, INITIAL_PRODUCTS, INITIAL_FAQS, INITIAL_GALLERY } from './data/initialData';
 import { MessageCircle } from 'lucide-react';
 
+const getTabFromPath = (): string => {
+  if (typeof window === 'undefined') return 'home';
+  const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+  if (path === '/admin') return 'admin';
+  if (path === '/menu') return 'menu';
+  if (path === '/events') return 'events';
+  if (path === '/gifting') return 'gifting';
+  if (path === '/about') return 'about';
+  if (path === '/gallery') return 'gallery';
+  if (path === '/contact') return 'contact';
+  return 'home';
+};
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTabState] = useState<string>(getTabFromPath);
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      const targetPath = tab === 'home' ? '/' : `/${tab}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({}, '', targetPath);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTabState(getTabFromPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [faqs, setFaqs] = useState<FAQItem[]>(INITIAL_FAQS);
@@ -142,6 +173,7 @@ export default function App() {
             setToken={setAdminToken}
             onCloseAdmin={() => setActiveTab('home')}
             onSettingsUpdated={(updated) => setBusinessSettings(updated)}
+            onProductsUpdated={(updatedProds) => setProducts(updatedProds)}
           />
         )}
       </main>

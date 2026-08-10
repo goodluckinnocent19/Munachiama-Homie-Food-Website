@@ -107,22 +107,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action CTA Buttons */}
           <div className="hidden sm:flex items-center gap-3">
-            {/* Admin Toggle */}
+            {/* Staff / Admin Access Link */}
             <button
               onClick={onOpenAdmin}
-              className={`relative p-2.5 rounded-full border transition-all text-xs font-medium flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg border transition-all text-xs font-semibold flex items-center gap-1.5 ${
                 isAdminLoggedIn
-                  ? 'bg-[#25D366] text-[#1A0507] border-[#25D366]'
-                  : 'border-[#D4AF37]/30 text-[#FDF8F2] hover:border-[#D4AF37]'
+                  ? 'bg-[#2D5A3F] text-white border-[#25D366]'
+                  : 'border-[#D4AF37]/20 text-[#FDF8F2]/70 hover:text-[#D4AF37] hover:border-[#D4AF37]/50'
               }`}
-              title={isAdminLoggedIn ? 'Admin Portal Active' : 'Admin Login'}
+              title={isAdminLoggedIn ? 'Admin Portal Active' : 'Staff Login (/admin)'}
             >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{isAdminLoggedIn ? 'Admin Portal' : 'Admin'}</span>
-              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600 border border-[#1A0507]"></span>
-              </span>
+              <UserCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span className="hidden md:inline">{isAdminLoggedIn ? 'Admin Portal' : 'Staff Login'}</span>
             </button>
 
             {/* Gmail Integration Link */}

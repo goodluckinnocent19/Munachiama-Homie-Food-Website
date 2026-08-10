@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, CheckCircle2, ShieldCheck, ShoppingBag, MessageCircle, AlertCircle, Sparkles, ArrowRight, ArrowLeft } from 'lucide-react';
 import { submitEnquiry, buildWhatsAppLink } from '../services/api';
+import { formatErrorMessage } from '../utils/formatError';
 import { EventType } from '../types';
 
 interface SmartEnquiryModalProps {
@@ -86,7 +87,7 @@ export const SmartEnquiryModal: React.FC<SmartEnquiryModalProps> = ({
         enquiryId: res.enquiry.id,
       });
     } catch (err: any) {
-      setErrorMsg(err.message || 'Submission failed. Please check your network connection.');
+      setErrorMsg(formatErrorMessage(err, 'Submission failed. Please check your network connection.'));
     } finally {
       setLoading(false);
     }
