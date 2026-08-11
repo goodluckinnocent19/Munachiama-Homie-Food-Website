@@ -27,7 +27,7 @@ import {
   saveNotification,
   getBusinessSettings,
   saveBusinessSettings,
-} from './src/lib/firestoreDb.js';
+} from './src/lib/firestoreDb';
 import {
   Product,
   Category,
@@ -44,8 +44,8 @@ import {
   OrderStatus,
   PaymentStatus,
   BusinessSettings,
-} from './src/types.js';
-import { DEFAULT_BUSINESS_SETTINGS, INITIAL_PRODUCTS, INITIAL_FAQS } from './src/data/initialData.js';
+} from './src/types';
+import { DEFAULT_BUSINESS_SETTINGS, INITIAL_PRODUCTS, INITIAL_FAQS } from './src/data/initialData';
 
 const app = express();
 const PORT = 3000;
@@ -53,7 +53,16 @@ const PORT = 3000;
 app.use(express.json({ limit: '10mb' }));
 
 // Admin Security Token & Authorized Emails
-const ADMIN_SECRET_TOKEN = process.env.ADMIN_SECRET_TOKEN || 'ChiamaAdminSecretTokenKey2026';
+const getAdminSecretToken = () => {
+  if (process.env.ADMIN_SECRET_TOKEN) {
+    return process.env.ADMIN_SECRET_TOKEN;
+  }
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    return 'ChiamaAdminSecretTokenKey2026';
+  }
+  return '';
+};
+
 const AUTHORIZED_ADMIN_EMAILS = [
   'admin@chiama21foods.com',
   'goodluckinnocent19@gmail.com',
@@ -64,21 +73,17 @@ const AUTHORIZED_ADMIN_EMAILS = [
 async function requireAdmin(req: Request, res: Response, next: () => void) {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
-    return res.status(401).json({ error: 'Unauthorized: Admin authentication token required.' });
+    return res.status(401).json({ success: false, error: 'Unauthorized: Admin authentication token required.' });
   }
 
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+  const adminSecret = getAdminSecretToken();
 
-  if (token === ADMIN_SECRET_TOKEN) {
+  if (adminSecret && token === adminSecret) {
     return next();
   }
 
-  // Token provided from admin login session or Firebase ID
-  if (token && token.length > 20) {
-    return next();
-  }
-
-  return res.status(401).json({ error: 'Unauthorized: Invalid admin credentials.' });
+  return res.status(401).json({ success: false, error: 'Unauthorized: Invalid admin credentials.' });
 }
 
 // -------------------------------------------------------------
@@ -116,13 +121,35 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
   try {
     const { username, password, email } = req.body;
 
-    const envUser = process.env.ADMIN_USERNAME || 'chiama_admin';
-    const envPass = process.env.ADMIN_PASSWORD;
+    const isProduction = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
 
-    // Email based login or secure env verification
+    const envUser = process.env.ADMIN_USERNAME;
+    const envPass = process.env.ADMIN_PASSWORD;
+    const envToken = process.env.ADMIN_SECRET_TOKEN;
+
+    // Check production environment configuration requirements
+    if (isProduction && (!envUser || !envPass || !envToken)) {
+      return res.status(500).json({
+        success: false,
+        error: 'Admin authentication is not configured.',
+      });
+    }
+
+    const effectiveUser = envUser || (!isProduction ? 'chiama_admin' : '');
+    const effectivePass = envPass || (!isProduction ? 'admin123' : '');
+    const effectiveToken = getAdminSecretToken();
+
+    if (!effectiveUser || !effectivePass || !effectiveToken) {
+      return res.status(500).json({
+        success: false,
+        error: 'Admin authentication is not configured.',
+      });
+    }
+
+    // Email based login verification
     if (email && AUTHORIZED_ADMIN_EMAILS.includes(email.toLowerCase())) {
       return res.json({
-        token: ADMIN_SECRET_TOKEN,
+        token: effectiveToken,
         user: {
           id: `admin-${Date.now()}`,
           username: email.split('@')[0],
@@ -132,9 +159,10 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
       });
     }
 
-    if (envPass && username === envUser && password === envPass) {
+    // Username & Password login verification
+    if (username === effectiveUser && password === effectivePass) {
       return res.json({
-        token: ADMIN_SECRET_TOKEN,
+        token: effectiveToken,
         user: {
           id: 'admin-1',
           username: 'ChiamaAdmin',
@@ -144,22 +172,9 @@ app.post('/api/admin/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Fallback secure verification check
-    if (password && process.env.ADMIN_SECRET_KEY && password === process.env.ADMIN_SECRET_KEY) {
-      return res.json({
-        token: ADMIN_SECRET_TOKEN,
-        user: {
-          id: 'admin-1',
-          username: 'ChiamaAdmin',
-          email: 'admin@chiama21foods.com',
-          role: 'admin',
-        },
-      });
-    }
-
-    return res.status(401).json({ error: 'Invalid admin credentials. Access denied.' });
+    return res.status(401).json({ success: false, error: 'Invalid admin credentials. Access denied.' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Login failed' });
+    res.status(500).json({ success: false, error: err.message || 'Login failed' });
   }
 });
 
@@ -1288,6 +1303,18 @@ async function startServer() {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
+
+// Global Express Error Handling Middleware (Ensures ALL server errors return valid JSON)
+app.use((err: any, req: Request, res: Response, next: any) => {
+  console.error('[Global Server Error]:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(err.status || err.statusCode || 500).json({
+    success: false,
+    error: err.message || 'An unexpected internal server error occurred.',
+  });
+});
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   startServer();

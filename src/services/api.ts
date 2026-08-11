@@ -17,6 +17,40 @@ import {
 
 const API_BASE = '/api';
 
+/**
+ * Helper function to safely parse API responses.
+ * Prevents "Unexpected end of JSON input" syntax errors on non-JSON or HTML responses.
+ */
+async function safeFetchJson<T = any>(res: Response, fallbackError = 'Request failed'): Promise<T> {
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  if (!res.ok) {
+    if (isJson) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || `${fallbackError} (Status ${res.status})`);
+    } else {
+      const textText = await res.text().catch(() => '');
+      const cleanMsg = textText.length > 0 && textText.length < 200 ? textText : `Server returned non-JSON error (Status ${res.status})`;
+      throw new Error(cleanMsg);
+    }
+  }
+
+  if (!isJson) {
+    const textText = await res.text().catch(() => '');
+    if (!textText || textText.trim().length === 0) {
+      throw new Error(`Empty response received from server (${fallbackError})`);
+    }
+    try {
+      return JSON.parse(textText) as T;
+    } catch (e) {
+      throw new Error(`Invalid JSON payload received from server for ${fallbackError}`);
+    }
+  }
+
+  return res.json() as Promise<T>;
+}
+
 export async function fetchProducts(params?: { category?: string; featured?: boolean; search?: string; includeHidden?: boolean }): Promise<Product[]> {
   const query = new URLSearchParams();
   if (params?.category) query.append('category', params.category);
@@ -25,14 +59,12 @@ export async function fetchProducts(params?: { category?: string; featured?: boo
   if (params?.includeHidden) query.append('includeHidden', 'true');
 
   const res = await fetch(`${API_BASE}/products?${query.toString()}`);
-  if (!res.ok) throw new Error('Failed to fetch products');
-  return res.json();
+  return safeFetchJson<Product[]>(res, 'Failed to fetch products');
 }
 
 export async function fetchCategories(): Promise<Category[]> {
   const res = await fetch(`${API_BASE}/categories`);
-  if (!res.ok) throw new Error('Failed to fetch categories');
-  return res.json();
+  return safeFetchJson<Category[]>(res, 'Failed to fetch categories');
 }
 
 export async function submitEnquiry(data: Partial<Enquiry>): Promise<{ success: boolean; enquiry: Enquiry; message: string; notice: string }> {
@@ -41,23 +73,17 @@ export async function submitEnquiry(data: Partial<Enquiry>): Promise<{ success: 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to submit enquiry');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Failed to submit enquiry');
 }
 
 export async function fetchGallery(): Promise<GalleryItem[]> {
   const res = await fetch(`${API_BASE}/gallery`);
-  if (!res.ok) throw new Error('Failed to fetch gallery');
-  return res.json();
+  return safeFetchJson<GalleryItem[]>(res, 'Failed to fetch gallery');
 }
 
 export async function fetchFAQs(): Promise<FAQItem[]> {
   const res = await fetch(`${API_BASE}/faqs`);
-  if (!res.ok) throw new Error('Failed to fetch FAQs');
-  return res.json();
+  return safeFetchJson<FAQItem[]>(res, 'Failed to fetch FAQs');
 }
 
 // -------------------------------------------------------------
@@ -82,11 +108,7 @@ export async function submitBankTransfer(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to submit payment proof');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Failed to submit payment proof');
 }
 
 export async function trackOrderAndPayment(orderId: string): Promise<{
@@ -104,11 +126,7 @@ export async function trackOrderAndPayment(orderId: string): Promise<{
   };
 }> {
   const res = await fetch(`${API_BASE}/orders/track/${encodeURIComponent(orderId)}`);
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Order tracking record not found');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Order tracking record not found');
 }
 
 // -------------------------------------------------------------
@@ -121,19 +139,14 @@ export async function adminLogin(credentials: { username: string; password: stri
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(credentials),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Login failed');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Login failed');
 }
 
 export async function fetchAdminEnquiries(token: string): Promise<Enquiry[]> {
   const res = await fetch(`${API_BASE}/enquiries`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Failed to fetch enquiries');
-  return res.json();
+  return safeFetchJson<Enquiry[]>(res, 'Failed to fetch enquiries');
 }
 
 export async function updateEnquiryStatus(token: string, id: string, updates: Partial<Enquiry>): Promise<Enquiry> {
@@ -145,16 +158,14 @@ export async function updateEnquiryStatus(token: string, id: string, updates: Pa
     },
     body: JSON.stringify(updates),
   });
-  if (!res.ok) throw new Error('Failed to update enquiry status');
-  return res.json();
+  return safeFetchJson<Enquiry>(res, 'Failed to update enquiry status');
 }
 
 export async function fetchAdminOrders(token: string): Promise<Order[]> {
   const res = await fetch(`${API_BASE}/orders`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Failed to fetch orders');
-  return res.json();
+  return safeFetchJson<Order[]>(res, 'Failed to fetch orders');
 }
 
 export async function updateOrderStatus(token: string, id: string, updates: Partial<Order>): Promise<Order> {
@@ -166,16 +177,14 @@ export async function updateOrderStatus(token: string, id: string, updates: Part
     },
     body: JSON.stringify(updates),
   });
-  if (!res.ok) throw new Error('Failed to update order');
-  return res.json();
+  return safeFetchJson<Order>(res, 'Failed to update order');
 }
 
 export async function fetchAdminPaymentSubmissions(token: string): Promise<PaymentSubmission[]> {
   const res = await fetch(`${API_BASE}/payment-submissions`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Failed to fetch payment submissions');
-  return res.json();
+  return safeFetchJson<PaymentSubmission[]>(res, 'Failed to fetch payment submissions');
 }
 
 export async function verifyPaymentSubmission(token: string, id: string, payload?: { notes?: string; verified_amount?: number }): Promise<{ success: boolean; message: string; submission: PaymentSubmission }> {
@@ -187,11 +196,7 @@ export async function verifyPaymentSubmission(token: string, id: string, payload
     },
     body: JSON.stringify(payload || {}),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to verify payment');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Failed to verify payment');
 }
 
 export async function rejectPaymentSubmission(token: string, id: string, rejection_reason: string): Promise<{ success: boolean; message: string; submission: PaymentSubmission }> {
@@ -203,19 +208,14 @@ export async function rejectPaymentSubmission(token: string, id: string, rejecti
     },
     body: JSON.stringify({ rejection_reason }),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to reject payment');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Failed to reject payment');
 }
 
 export async function fetchAdminPaymentPlans(token: string): Promise<PaymentPlan[]> {
   const res = await fetch(`${API_BASE}/payment-plans`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Failed to fetch payment plans');
-  return res.json();
+  return safeFetchJson<PaymentPlan[]>(res, 'Failed to fetch payment plans');
 }
 
 export async function createAdminPaymentPlan(token: string, planData: {
@@ -237,11 +237,7 @@ export async function createAdminPaymentPlan(token: string, planData: {
     },
     body: JSON.stringify(planData),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to create payment plan');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Failed to create payment plan');
 }
 
 export async function updateAdminInstallment(token: string, id: string, updates: Partial<Installment>): Promise<Installment> {
@@ -253,16 +249,14 @@ export async function updateAdminInstallment(token: string, id: string, updates:
     },
     body: JSON.stringify(updates),
   });
-  if (!res.ok) throw new Error('Failed to update installment');
-  return res.json();
+  return safeFetchJson<Installment>(res, 'Failed to update installment');
 }
 
 export async function fetchAdminPaymentAuditLogs(token: string): Promise<PaymentAuditLog[]> {
   const res = await fetch(`${API_BASE}/payment-audit-logs`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Failed to fetch payment audit logs');
-  return res.json();
+  return safeFetchJson<PaymentAuditLog[]>(res, 'Failed to fetch payment audit logs');
 }
 
 export async function createAdminProduct(token: string, productData: Partial<Product>): Promise<Product> {
@@ -274,11 +268,7 @@ export async function createAdminProduct(token: string, productData: Partial<Pro
     },
     body: JSON.stringify(productData),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to create product');
-  }
-  return res.json();
+  return safeFetchJson<Product>(res, 'Failed to create product');
 }
 
 export async function updateAdminProduct(token: string, id: string, productData: Partial<Product>): Promise<Product> {
@@ -290,8 +280,7 @@ export async function updateAdminProduct(token: string, id: string, productData:
     },
     body: JSON.stringify(productData),
   });
-  if (!res.ok) throw new Error('Failed to update product');
-  return res.json();
+  return safeFetchJson<Product>(res, 'Failed to update product');
 }
 
 export async function deleteAdminProduct(token: string, id: string): Promise<{ success: boolean }> {
@@ -299,22 +288,19 @@ export async function deleteAdminProduct(token: string, id: string): Promise<{ s
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Failed to delete product');
-  return res.json();
+  return safeFetchJson<{ success: boolean }>(res, 'Failed to delete product');
 }
 
 export async function fetchAdminMetrics(token: string): Promise<DashboardMetrics> {
   const res = await fetch(`${API_BASE}/metrics`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Failed to fetch metrics');
-  return res.json();
+  return safeFetchJson<DashboardMetrics>(res, 'Failed to fetch metrics');
 }
 
 export async function fetchBusinessSettings(): Promise<BusinessSettings> {
   const res = await fetch(`${API_BASE}/settings`);
-  if (!res.ok) throw new Error('Failed to fetch business settings');
-  return res.json();
+  return safeFetchJson<BusinessSettings>(res, 'Failed to fetch business settings');
 }
 
 export async function updateBusinessSettings(token: string, settings: Partial<BusinessSettings>): Promise<{ success: boolean; message: string; settings: BusinessSettings }> {
@@ -326,11 +312,7 @@ export async function updateBusinessSettings(token: string, settings: Partial<Bu
     },
     body: JSON.stringify(settings),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to update business settings');
-  }
-  return res.json();
+  return safeFetchJson(res, 'Failed to update business settings');
 }
 
 // Generate pre-filled WhatsApp link
@@ -349,24 +331,11 @@ export async function sendChatMessage(
   message: string,
   history: Array<{ role: 'user' | 'assistant'; text: string }>
 ): Promise<{ text: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/ai/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history }),
-    });
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      console.error('[AI Chat API Error] Response not OK:', res.status, res.statusText, errData);
-      throw new Error(errData.error || `Server error (${res.status}): Failed to communicate with Munachiama AI`);
-    }
-
-    const data = await res.json();
-    return data;
-  } catch (err: any) {
-    console.error('[AI Chat API Fetch Error]:', err);
-    throw err;
-  }
+  const res = await fetch(`${API_BASE}/ai/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+  });
+  return safeFetchJson<{ text: string }>(res, 'Failed to communicate with Munachiama AI');
 }
 
