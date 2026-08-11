@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
@@ -1174,118 +1173,24 @@ CONVERSATION INSTRUCTIONS:
   }
 });
 
-// -------------------------------------------------------------
-// WEBSOCKET SERVER FOR GEMINI LIVE VOICE (CONTAINER HOSTS)
-// -------------------------------------------------------------
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/live' });
-
-wss.on('connection', async (clientWs: WebSocket) => {
-  console.log('[Gemini Live API] Voice WebSocket connected');
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    clientWs.send(
-      JSON.stringify({
-        error: 'GEMINI_API_KEY is missing on server environment.',
-      })
-    );
-    clientWs.close();
-    return;
+// Global Express Error Handling Middleware (Ensures ALL server errors return valid JSON)
+app.use((err: any, req: Request, res: Response, next: any) => {
+  console.error('[Global Server Error]:', err);
+  if (res.headersSent) {
+    return next(err);
   }
-
-  const settings = await getBusinessSettings();
-
-  const systemInstruction = `You are Munachiama AI, the warm, hospitable, and intelligent culinary voice concierge for "${settings.businessName || 'Munachiama | Chiama21 Hommie Foods'}".
-You assist customers in Port Harcourt, Nigeria with natural drinks, cold-pressed juices, gourmet small chops, finger food platters, event catering, and luxury gift hampers.
-Contact: Phone ${settings.phone}, WhatsApp ${settings.whatsapp}, Email ${settings.email}, Address ${settings.address}.
-Be very warm, polite, and conversational. Keep responses clear and brief for a comfortable real-time spoken conversation.`;
-
-  try {
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
-
-    const session = await ai.live.connect({
-      model: 'gemini-3.1-flash-live-preview',
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
-        },
-        systemInstruction,
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
-      },
-      callbacks: {
-        onmessage: (message: LiveServerMessage) => {
-          const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-          if (audio) {
-            clientWs.send(JSON.stringify({ audio }));
-          }
-
-          const outputText = message.serverContent?.modelTurn?.parts?.[0]?.text;
-          if (outputText) {
-            clientWs.send(JSON.stringify({ text: outputText, role: 'assistant' }));
-          }
-
-          if (message.serverContent?.interrupted) {
-            clientWs.send(JSON.stringify({ interrupted: true }));
-          }
-        },
-        onclose: () => {
-          console.log('[Gemini Live API] Session closed');
-        },
-        onerror: (err) => {
-          console.error('[Gemini Live API] Session error:', err);
-          try {
-            clientWs.send(JSON.stringify({ error: err.message || 'Live session error' }));
-          } catch (e) {}
-        },
-      },
-    });
-
-    clientWs.on('message', (data: any) => {
-      try {
-        const parsed = JSON.parse(data.toString());
-        if (parsed.audio) {
-          session.sendRealtimeInput({
-            audio: { data: parsed.audio, mimeType: 'audio/pcm;rate=16000' },
-          });
-        } else if (parsed.text) {
-          session.sendRealtimeInput({
-            text: parsed.text,
-          });
-        }
-      } catch (e) {
-        console.error('[Gemini Live API] Failed to parse input:', e);
-      }
-    });
-
-    clientWs.on('close', () => {
-      try {
-        session.close();
-      } catch (e) {}
-    });
-  } catch (err: any) {
-    console.error('[Gemini Live API] Failed to connect:', err);
-    try {
-      clientWs.send(JSON.stringify({ error: 'Live API connection error: ' + err.message }));
-      clientWs.close();
-    } catch (e) {}
-  }
+  res.status(err.status || err.statusCode || 500).json({
+    success: false,
+    error: err.message || 'An unexpected internal server error occurred.',
+  });
 });
 
 // -------------------------------------------------------------
-// VITE DEV SERVER OR STATIC SERVING
+// STANDALONE SERVER STARTUP & WEBSOCKET SETUP (NON-VERCEL)
 // -------------------------------------------------------------
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -1299,22 +1204,114 @@ async function startServer() {
     });
   }
 
+  const server = http.createServer(app);
+  const wss = new WebSocketServer({ server, path: '/live' });
+
+  wss.on('connection', async (clientWs: WebSocket) => {
+    console.log('[Gemini Live API] Voice WebSocket connected');
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      clientWs.send(
+        JSON.stringify({
+          error: 'GEMINI_API_KEY is missing on server environment.',
+        })
+      );
+      clientWs.close();
+      return;
+    }
+
+    const settings = await getBusinessSettings();
+
+    const systemInstruction = `You are Munachiama AI, the warm, hospitable, and intelligent culinary voice concierge for "${settings.businessName || 'Munachiama | Chiama21 Hommie Foods'}".
+You assist customers in Port Harcourt, Nigeria with natural drinks, cold-pressed juices, gourmet small chops, finger food platters, event catering, and luxury gift hampers.
+Contact: Phone ${settings.phone}, WhatsApp ${settings.whatsapp}, Email ${settings.email}, Address ${settings.address}.
+Be very warm, polite, and conversational. Keep responses clear and brief for a comfortable real-time spoken conversation.`;
+
+    try {
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const session = await ai.live.connect({
+        model: 'gemini-3.1-flash-live-preview',
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
+          },
+          systemInstruction,
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+        },
+        callbacks: {
+          onmessage: (message: LiveServerMessage) => {
+            const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+            if (audio) {
+              clientWs.send(JSON.stringify({ audio }));
+            }
+
+            const outputText = message.serverContent?.modelTurn?.parts?.[0]?.text;
+            if (outputText) {
+              clientWs.send(JSON.stringify({ text: outputText, role: 'assistant' }));
+            }
+
+            if (message.serverContent?.interrupted) {
+              clientWs.send(JSON.stringify({ interrupted: true }));
+            }
+          },
+          onclose: () => {
+            console.log('[Gemini Live API] Session closed');
+          },
+          onerror: (err) => {
+            console.error('[Gemini Live API] Session error:', err);
+            try {
+              clientWs.send(JSON.stringify({ error: err.message || 'Live session error' }));
+            } catch (e) {}
+          },
+        },
+      });
+
+      clientWs.on('message', (data: any) => {
+        try {
+          const parsed = JSON.parse(data.toString());
+          if (parsed.audio) {
+            session.sendRealtimeInput({
+              audio: { data: parsed.audio, mimeType: 'audio/pcm;rate=16000' },
+            });
+          } else if (parsed.text) {
+            session.sendRealtimeInput({
+              text: parsed.text,
+            });
+          }
+        } catch (e) {
+          console.error('[Gemini Live API] Failed to parse input:', e);
+        }
+      });
+
+      clientWs.on('close', () => {
+        try {
+          session.close();
+        } catch (e) {}
+      });
+    } catch (err: any) {
+      console.error('[Gemini Live API] Failed to connect:', err);
+      try {
+        clientWs.send(JSON.stringify({ error: 'Live API connection error: ' + err.message }));
+        clientWs.close();
+      } catch (e) {}
+    }
+  });
+
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
-
-// Global Express Error Handling Middleware (Ensures ALL server errors return valid JSON)
-app.use((err: any, req: Request, res: Response, next: any) => {
-  console.error('[Global Server Error]:', err);
-  if (res.headersSent) {
-    return next(err);
-  }
-  res.status(err.status || err.statusCode || 500).json({
-    success: false,
-    error: err.message || 'An unexpected internal server error occurred.',
-  });
-});
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   startServer();
