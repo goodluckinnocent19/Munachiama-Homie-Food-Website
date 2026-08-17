@@ -21,7 +21,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab, onOpenEnquiryModal
   const whatsapp = settings?.whatsapp || '+234 806 512 4134';
   const email = settings?.email || 'chiama21hommiefoods@gmail.com';
   const address = settings?.address || 'Ada-George Road, Mgbuoba, Port Harcourt, Rivers, Nigeria';
-  const tagline = settings?.tagline || 'Premium drinks, catering, gifting and beautifully crafted experiences for special moments.';
+  const tagline = settings?.tagline || 'Naturally Refined. Beautifully Served.';
 
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
   const cleanPhone = phone.replace(/[^0-9+]/g, '');

@@ -5,6 +5,8 @@ export type CategorySlug =
   | 'mocktails-cocktails'
   | 'parfaits'
   | 'healthy-salads'
+  | 'chicken-wrap'
+  | 'sandwiches'
   | 'luxury-gifting'
   | 'hampers'
   | 'event-catering'
@@ -222,12 +224,28 @@ export interface Order {
   quantity: string;
   budget: string;
   notes?: string;
-  total_amount?: number;
+  product_subtotal?: number;
+  service_charge?: number; // 20% of product subtotal
+  logistics_charge?: number; // Distance-based logistics charge
+  total_amount?: number; // Total payable
+  total_payable?: number; // Total payable (subtotal + 20% service + logistics)
+  payment_requirement?: 'FULL_PAYMENT';
+  pricing_notice?: string;
   status: OrderStatus;
   payment_status: PaymentStatus;
   payment_plan_id?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface PricingBreakdown {
+  product_subtotal: number;
+  service_charge: number; // 20%
+  service_charge_percent: number; // 20
+  logistics_charge: number;
+  total_payable: number;
+  stated_prices_notice: string;
+  payment_policy_notice: string;
 }
 
 export interface GalleryItem {

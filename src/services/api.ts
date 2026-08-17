@@ -339,3 +339,41 @@ export async function sendChatMessage(
   return safeFetchJson<{ text: string }>(res, 'Failed to communicate with Munachiama AI');
 }
 
+// Upload Product Image via Admin API Endpoint
+export async function uploadAdminProductImage(token: string, file: File): Promise<string> {
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  if (!allowedTypes.includes(file.type.toLowerCase())) {
+    throw new Error('Unsupported image format. Please select JPG, JPEG, PNG, or WEBP file.');
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error(`File size (${(file.size / (1024 * 1024)).toFixed(2)}MB) exceeds 5MB limit. Please select a smaller file.`);
+  }
+
+  const base64Data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read selected image file.'));
+    reader.readAsDataURL(file);
+  });
+
+  const res = await fetch(`${API_BASE}/admin/upload-image`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      fileData: base64Data,
+      fileName: file.name,
+      mimeType: file.type,
+    }),
+  });
+
+  const data = await safeFetchJson<{ success: boolean; url: string; error?: string }>(res, 'Image upload failed');
+  if (!data.url) {
+    throw new Error(data.error || 'Upload succeeded but no download URL was returned.');
+  }
+  return data.url;
+}
+

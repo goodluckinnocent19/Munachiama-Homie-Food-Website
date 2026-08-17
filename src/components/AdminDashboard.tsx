@@ -35,6 +35,7 @@ import {
   fetchAdminPaymentAuditLogs,
   fetchBusinessSettings,
   updateBusinessSettings,
+  uploadAdminProductImage,
 } from '../services/api';
 import { uploadStorageImage } from '../lib/firestoreDb';
 import {
@@ -110,7 +111,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Business Settings State
   const [settingsForm, setSettingsForm] = useState<BusinessSettings>({
     businessName: 'Munachiama | Chiama21 Hommie Foods',
-    tagline: 'Premium drinks, catering, gifting and beautifully crafted experiences for special moments.',
+    tagline: 'Naturally Refined. Beautifully Served.',
     phone: '+234 806 512 4134',
     whatsapp: '+234 806 512 4134',
     email: 'chiama21hommiefoods@gmail.com',
@@ -463,19 +464,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setProductStatusMsg(null);
 
     try {
-      const downloadUrl = await uploadStorageImage(file);
+      let downloadUrl = '';
+      if (token) {
+        downloadUrl = await uploadAdminProductImage(token, file);
+      } else {
+        downloadUrl = await uploadStorageImage(file);
+      }
       setEditingProduct((prev) => (prev ? { ...prev, image_url: downloadUrl } : { image_url: downloadUrl }));
-      setProductStatusMsg({ type: 'success', text: 'Image uploaded successfully to Firebase Storage!' });
-    } catch (storageErr) {
-      console.warn('Firebase Storage upload warning, falling back to FileReader:', storageErr);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setEditingProduct((prev) => (prev ? { ...prev, image_url: reader.result as string } : { image_url: reader.result as string }));
-          setProductStatusMsg({ type: 'success', text: 'Image attached successfully.' });
-        }
-      };
-      reader.readAsDataURL(file);
+      setProductStatusMsg({ type: 'success', text: 'Product image uploaded successfully to Firebase Storage!' });
+    } catch (storageErr: any) {
+      console.error('[Admin Product Image Upload Failed]:', storageErr);
+      setProductStatusMsg({
+        type: 'error',
+        text: storageErr?.message || 'Failed to upload image to Firebase Storage.',
+      });
     } finally {
       setIsUploadingImage(false);
     }
@@ -1445,7 +1447,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             type="button"
                             onClick={() =>
                               setEmailReplyBody(
-                                `Dear Valued Customer,\n\nThank you for reaching out to Munachiama | Chiama21 Hommie Foods regarding your enquiry!\n\nWe have received your message and are pleased to offer our fresh natural drinks & gourmet catering packages in Port Harcourt.\n\nBank Account Details for Payment / Booking Deposit:\n- Bank Name: Access Bank\n- Account Number: 0093177004\n- Account Name: Ama Chioma Gloria\n\nPlease let us know if you have specific menu preferences or guest count updates!\n\nWarm regards,\nManagement Team\nMunachiama Foods (+234 806 512 4134)`
+                                `Dear Valued Customer,\n\nThank you for reaching out to Munachiama | Chiama21 Hommie Foods regarding your enquiry!\n\nWe have received your message and are pleased to offer our fresh natural drinks & gourmet catering packages in Port Harcourt.\n\nBank Account Details for Payment Confirmation:\n- Bank Name: Access Bank\n- Account Number: 0093177004\n- Account Name: Ama Chioma Gloria\n\nPolicy: Full payment confirms order before delivery. Stated product prices do not include 20% service charge and logistics.\n\nPlease let us know if you have specific menu preferences or guest count updates!\n\nWarm regards,\nManagement Team\nMunachiama Foods (+234 806 512 4134)`
                               )
                             }
                             className="bg-[#2D1B1B] hover:bg-[#3D0C11] text-[#E8DCC4] border border-[#D4AF37]/30 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
@@ -2174,7 +2176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     value={settingsForm.tagline}
                     onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })}
                     className="w-full p-3 rounded-xl bg-[#2D1B1B] border border-[#D4AF37]/30 text-sm text-[#FDF8F2] focus:outline-none focus:border-[#D4AF37]"
-                    placeholder="Premium drinks, catering, gifting and beautifully crafted experiences..."
+                    placeholder="Naturally Refined. Beautifully Served."
                   />
                 </div>
               </div>
@@ -2555,33 +2557,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
                     className="w-full p-3 rounded-xl bg-[#2D1B1B] border border-[#D4AF37]/30 text-sm text-[#FDF8F2] focus:outline-none focus:border-[#D4AF37]"
                   >
-                    <option value="natural-drinks" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Natural Drinks
-                    </option>
-                    <option value="fresh-juices" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Fresh Fruit Juices
-                    </option>
-                    <option value="small-chops" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Small Chops
-                    </option>
-                    <option value="mocktails-cocktails" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Mocktails & Cocktails
-                    </option>
-                    <option value="parfaits" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Parfaits
-                    </option>
-                    <option value="healthy-salads" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Healthy Salads
-                    </option>
-                    <option value="luxury-gifting" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Luxury Gifting
-                    </option>
-                    <option value="hampers" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Hampers & Gift Boxes
-                    </option>
-                    <option value="event-catering" className="bg-[#1A0507] text-[#FDF8F2]">
-                      Event Catering & Live Stations
-                    </option>
+                    {categories && categories.length > 0 ? (
+                      categories.map((cat) => (
+                        <option key={cat.slug || cat.id} value={cat.slug} className="bg-[#1A0507] text-[#FDF8F2]">
+                          {cat.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="natural-drinks" className="bg-[#1A0507] text-[#FDF8F2]">Natural Drinks</option>
+                        <option value="fresh-juices" className="bg-[#1A0507] text-[#FDF8F2]">Fresh Fruit Juices</option>
+                        <option value="small-chops" className="bg-[#1A0507] text-[#FDF8F2]">Small Chops</option>
+                        <option value="mocktails-cocktails" className="bg-[#1A0507] text-[#FDF8F2]">Mocktails & Cocktails</option>
+                        <option value="parfaits" className="bg-[#1A0507] text-[#FDF8F2]">Parfaits</option>
+                        <option value="healthy-salads" className="bg-[#1A0507] text-[#FDF8F2]">Healthy Salads</option>
+                        <option value="chicken-wrap" className="bg-[#1A0507] text-[#FDF8F2]">Chicken Wrap</option>
+                        <option value="sandwiches" className="bg-[#1A0507] text-[#FDF8F2]">Sandwiches</option>
+                        <option value="luxury-gifting" className="bg-[#1A0507] text-[#FDF8F2]">Luxury Gifting</option>
+                        <option value="hampers" className="bg-[#1A0507] text-[#FDF8F2]">Hampers & Gift Boxes</option>
+                        <option value="event-catering" className="bg-[#1A0507] text-[#FDF8F2]">Event Catering & Live Stations</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -3183,7 +3179,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onChange={(e) => setPlanPartsCount(Number(e.target.value))}
                   className="w-full p-3 rounded-xl bg-[#2D1B1B] border border-[#D4AF37]/30 text-xs text-[#FDF8F2] focus:outline-none focus:border-[#D4AF37]"
                 >
-                  <option value={2}>2 Installments (50% / 50%)</option>
+                  <option value={2}>2 Installments (Equal Milestones)</option>
                   <option value={3}>3 Installments (Equal Parts)</option>
                   <option value={4}>4 Installments</option>
                 </select>

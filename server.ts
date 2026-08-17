@@ -1,8 +1,12 @@
 import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { app as firebaseApp } from './src/lib/firebase';
+import firebaseConfigJson from './firebase-applet-config.json';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { WebSocketServer, WebSocket } from 'ws';
+import { Resend } from 'resend';
 import {
   getProducts,
   saveProduct,
@@ -274,18 +278,199 @@ app.delete('/api/products/:id', requireAdmin, async (req: Request, res: Response
   }
 });
 
-// IMAGE UPLOAD ENDPOINT (Admin Failsafe)
-app.post('/api/upload', requireAdmin, async (req: Request, res: Response) => {
-  try {
-    const { image } = req.body;
-    if (!image) {
-      return res.status(400).json({ error: 'No image file or data provided.' });
-    }
-    res.json({ success: true, url: image });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to upload image' });
+// -------------------------------------------------------------
+// RESEND EMAIL NOTIFICATIONS SYSTEM (Server-Side)
+// -------------------------------------------------------------
+let resendClient: Resend | null = null;
+function getResend(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  if (!resendClient) {
+    resendClient = new Resend(apiKey);
   }
-});
+  return resendClient;
+}
+
+const BUSINESS_NOTIFICATION_EMAIL = process.env.BUSINESS_NOTIFICATION_EMAIL || 'chiama21hommiefoods@gmail.com';
+const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM || 'Munachiama Orders <onboarding@resend.dev>';
+
+async function sendBusinessNotificationEmail(params: {
+  subject: string;
+  headline: string;
+  badgeText: string;
+  detailsHtml: string;
+  plainText: string;
+}) {
+  try {
+    const resend = getResend();
+    if (!resend) {
+      console.log(`[Email Notification Notice] RESEND_API_KEY not set. Notification skipped for: "${params.subject}"`);
+      return;
+    }
+
+    const htmlBody = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #120305; color: #FDF8F2; padding: 32px 16px; margin: 0;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #1A0507; border: 1px solid #D4AF37; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #3D0C11 0%, #1A0507 100%); padding: 24px; border-bottom: 1px solid rgba(212, 175, 55, 0.3); text-align: center;">
+            <div style="display: inline-block; padding: 4px 12px; background-color: rgba(212, 175, 55, 0.15); border: 1px solid rgba(212, 175, 55, 0.4); border-radius: 20px; font-size: 11px; font-weight: bold; color: #D4AF37; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px;">
+              ${params.badgeText}
+            </div>
+            <h1 style="color: #FDF8F2; margin: 4px 0 0 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">
+              MUNACHIAMA | CHIAMA21 HOMMIE FOODS
+            </h1>
+            <p style="color: #D4AF37; margin: 4px 0 0 0; font-size: 13px; font-style: italic;">
+              ${params.headline}
+            </p>
+          </div>
+
+          <!-- Body Content -->
+          <div style="padding: 24px; color: #FDF8F2; font-size: 14px; line-height: 1.6;">
+            ${params.detailsHtml}
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color: #120305; padding: 16px 24px; border-top: 1px solid rgba(212, 175, 55, 0.2); text-align: center; font-size: 12px; color: rgba(253, 248, 242, 0.6);">
+            <p style="margin: 0; color: #D4AF37; font-weight: 600;">Munachiama Catering & Culinary Management</p>
+            <p style="margin: 4px 0 0 0;">Official WhatsApp: +234 806 512 4134 | Email: chiama21hommiefoods@gmail.com</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const result = await resend.emails.send({
+      from: EMAIL_FROM_ADDRESS,
+      to: [BUSINESS_NOTIFICATION_EMAIL],
+      subject: `[Munachiama Foods] ${params.subject}`,
+      html: htmlBody,
+      text: params.plainText,
+    });
+
+    console.log(`[Resend Email Dispatched] Subject: "${params.subject}"`, result);
+  } catch (err: any) {
+    console.error(`[Resend Email Dispatch Error] Failed to send email for "${params.subject}":`, err?.message || err);
+  }
+}
+
+function formatFirebaseStorageError(err: any, bucketName: string): string {
+  const code = err?.code || '';
+  const msg = err?.message || '';
+
+  if (code === 'storage/unauthorized') {
+    return `Firebase Storage permission denied (storage/unauthorized). Please verify Firebase Storage Security Rules for bucket: ${bucketName}.`;
+  }
+  if (code === 'storage/unauthenticated') {
+    return 'Firebase Storage user unauthenticated (storage/unauthenticated). Admin user authentication required.';
+  }
+  if (code === 'storage/quota-exceeded') {
+    return `Firebase Storage quota exceeded (storage/quota-exceeded) on bucket '${bucketName}'.`;
+  }
+  if (code === 'storage/invalid-argument') {
+    return 'Invalid file argument provided to Firebase Storage (storage/invalid-argument).';
+  }
+  if (code === 'storage/object-not-found') {
+    return 'Firebase Storage object not found (storage/object-not-found).';
+  }
+  if (code === 'storage/retry-limit-exceeded') {
+    return 'Firebase Storage operation timed out (storage/retry-limit-exceeded). Please try uploading again.';
+  }
+  if (code === 'storage/unknown' || err?.status_ === 404) {
+    return `Firebase Storage bucket error (storage/unknown, HTTP 404). Please ensure Cloud Storage is enabled in Firebase Console for project 'centering-sequence-vf6jr' and VITE_FIREBASE_STORAGE_BUCKET is configured as '${bucketName}'.`;
+  }
+  return `Firebase Storage Error (${code || 'unknown'}): ${msg}`;
+}
+
+async function handleImageUploadRequest(req: Request, res: Response) {
+  try {
+    const { fileData, fileName, mimeType, image } = req.body;
+    const rawData = fileData || image;
+
+    if (!rawData) {
+      return res.status(400).json({ success: false, error: 'No image file or base64 data provided.' });
+    }
+
+    // Determine MIME type
+    let detectedMime = mimeType || 'image/jpeg';
+    if (typeof rawData === 'string' && rawData.startsWith('data:')) {
+      const parts = rawData.split(';')[0];
+      detectedMime = parts.replace('data:', '');
+    }
+
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedMimeTypes.includes(detectedMime.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Unsupported image format. Allowed formats: PNG, JPG, JPEG, or WEBP.',
+      });
+    }
+
+    // Extract base64 content
+    let base64Content = rawData;
+    if (typeof rawData === 'string' && rawData.includes(';base64,')) {
+      base64Content = rawData.split(';base64,')[1];
+    }
+
+    const buffer = Buffer.from(base64Content, 'base64');
+    const fileSizeInMB = buffer.length / (1024 * 1024);
+
+    if (fileSizeInMB > 5) {
+      return res.status(400).json({
+        success: false,
+        error: `File size (${fileSizeInMB.toFixed(2)}MB) exceeds the 5MB limit. Please select a smaller file.`,
+      });
+    }
+
+    const sanitizedName = (fileName || 'product_image.jpg').replace(/[^a-zA-Z0-9.-]/g, '_');
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const storagePath = `products/${Date.now()}-${randomId}-${sanitizedName}`;
+
+    const rawBucket =
+      process.env.VITE_FIREBASE_STORAGE_BUCKET ||
+      process.env.FIREBASE_STORAGE_BUCKET ||
+      firebaseConfigJson.storageBucket ||
+      'centering-sequence-vf6jr.firebasestorage.app';
+
+    const cleanBucket = rawBucket.replace(/^gs:\/\//, '');
+
+    const dataUrl = `data:${detectedMime};base64,${base64Content}`;
+
+    try {
+      const storageObj = getStorage(firebaseApp, `gs://${cleanBucket}`);
+      const storageRef = ref(storageObj, storagePath);
+
+      const snapshot = await uploadString(storageRef, dataUrl, 'data_url');
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+
+      console.log(`[Firebase Storage Success] Product image uploaded to ${storagePath}`);
+      return res.json({ success: true, url: downloadUrl, path: storagePath });
+    } catch (storageErr: any) {
+      console.warn('[Firebase Storage Notice]: Storage upload failed or bucket uninitialized, falling back to data URL payload:', {
+        code: storageErr.code,
+        message: storageErr.message,
+        status: storageErr.status_,
+        path: storagePath,
+      });
+
+      // Provide resilient fallback so admin product creation is never blocked
+      return res.json({
+        success: true,
+        url: dataUrl,
+        path: storagePath,
+        fallback: true,
+      });
+    }
+  } catch (err: any) {
+    console.error('[Admin Image Upload Handler Error]:', err?.message || err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to process image upload.',
+    });
+  }
+}
+
+// IMAGE UPLOAD ENDPOINTS (Admin Protected)
+app.post('/api/upload', requireAdmin, handleImageUploadRequest);
+app.post('/api/admin/upload-image', requireAdmin, handleImageUploadRequest);
 
 // GET Categories
 app.get('/api/categories', async (req: Request, res: Response) => {
@@ -330,6 +515,68 @@ app.post('/api/enquiries', async (req: Request, res: Response) => {
     };
 
     await saveEnquiry(newEnquiry);
+
+    // Send Server-Side Email Notification via Resend
+    sendBusinessNotificationEmail({
+      subject: `New ${event_type.toUpperCase()} Enquiry #${newEnquiry.id} from ${customer_name}`,
+      headline: `New Catering / Quote Request Received`,
+      badgeText: 'New Enquiry Notification',
+      detailsHtml: `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold; width: 35%;">Enquiry ID:</td>
+            <td style="padding: 8px 0; color: #FDF8F2; font-family: monospace;">${newEnquiry.id}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Customer Name:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${customer_name}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Phone Number:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;"><a href="tel:${phone}" style="color: #D4AF37; text-decoration: none;">${phone}</a></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">WhatsApp Line:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newEnquiry.whatsapp}</td>
+          </tr>
+          ${email ? `
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Email Address:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${email}</td>
+          </tr>` : ''}
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Event Type:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${event_type}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Category:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newEnquiry.product_category}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Event Date:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newEnquiry.event_date}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Location:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${location}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Estimated Quantity:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newEnquiry.quantity}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Estimated Budget:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newEnquiry.budget}</td>
+          </tr>
+          ${message ? `
+          <tr>
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold; vertical-align: top;">Customer Note:</td>
+            <td style="padding: 8px 0; color: #FDF8F2; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px;">${message}</td>
+          </tr>` : ''}
+        </table>
+      `,
+      plainText: `New Enquiry #${newEnquiry.id}\nCustomer: ${customer_name}\nPhone: ${phone}\nEvent: ${event_type}\nCategory: ${newEnquiry.product_category}\nDate: ${newEnquiry.event_date}\nLocation: ${location}\nQuantity: ${newEnquiry.quantity}\nBudget: ${newEnquiry.budget}\nMessage: ${message || 'None'}`,
+    }).catch(() => {});
 
     res.status(201).json({
       success: true,
@@ -488,7 +735,7 @@ app.get('/api/metrics', requireAdmin, async (req: Request, res: Response) => {
 });
 
 // Submit Bank Transfer Payment (Customer Public Endpoint)
-app.post('/api/payments/submit-transfer', async (req: Request, res: Response) => {
+async function handleSubmitTransfer(req: Request, res: Response) {
   try {
     const { order_id, installment_id, payment_plan_id, customer_name, customer_phone, amount_submitted, payment_reference, bank_name, payment_date, notes, proof_url } = req.body;
 
@@ -575,6 +822,55 @@ app.post('/api/payments/submit-transfer', async (req: Request, res: Response) =>
       timestamp: new Date().toISOString(),
     });
 
+    // Send Server-Side Email Notification via Resend for Payment Verification
+    sendBusinessNotificationEmail({
+      subject: `Bank Transfer Proof Submitted for Order #${order_id} (₦${Number(amount_submitted).toLocaleString()})`,
+      headline: `Bank Transfer Awaiting Admin Verification`,
+      badgeText: 'Payment Proof Received',
+      detailsHtml: `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold; width: 35%;">Order / Enquiry ID:</td>
+            <td style="padding: 8px 0; color: #FDF8F2; font-family: monospace;">${order_id}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Customer Name:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newSubmission.customer_name}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Customer Phone:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;"><a href="tel:${newSubmission.customer_phone}" style="color: #D4AF37; text-decoration: none;">${newSubmission.customer_phone}</a></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Amount Paid:</td>
+            <td style="padding: 8px 0; color: #4ADE80; font-size: 16px; font-weight: bold;">₦${Number(amount_submitted).toLocaleString()}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Transaction Reference:</td>
+            <td style="padding: 8px 0; color: #FDF8F2; font-family: monospace;">${payment_reference}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Paying Bank:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${bank_name || 'Access Bank'}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Payment Date:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${payment_date || new Date().toISOString().split('T')[0]}</td>
+          </tr>
+          ${notes ? `
+          <tr>
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold; vertical-align: top;">Customer Notes:</td>
+            <td style="padding: 8px 0; color: #FDF8F2; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px;">${notes}</td>
+          </tr>` : ''}
+        </table>
+        <div style="margin-top: 16px; padding: 12px; background-color: rgba(212, 175, 55, 0.1); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 8px; font-size: 13px; text-align: center;">
+          <p style="margin: 0; color: #D4AF37; font-weight: bold;">Action Required:</p>
+          <p style="margin: 4px 0 0 0; color: #FDF8F2;">Log into Admin Dashboard to verify funds received in Access Bank account (0093177004).</p>
+        </div>
+      `,
+      plainText: `Bank Transfer Proof Submitted for Order #${order_id}\nCustomer: ${newSubmission.customer_name}\nPhone: ${newSubmission.customer_phone}\nAmount: ₦${Number(amount_submitted).toLocaleString()}\nReference: ${payment_reference}\nBank: ${bank_name || 'Access Bank'}\nDate: ${payment_date}`,
+    }).catch(() => {});
+
     res.status(201).json({
       success: true,
       submission: newSubmission,
@@ -588,6 +884,132 @@ app.post('/api/payments/submit-transfer', async (req: Request, res: Response) =>
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to submit bank transfer proof' });
+  }
+}
+
+app.post('/api/payments/submit-transfer', handleSubmitTransfer);
+app.post('/api/payments/submit-proof', handleSubmitTransfer);
+
+// CREATE Order (Public / Customer Checkout)
+app.post('/api/orders', async (req: Request, res: Response) => {
+  try {
+    const {
+      customer_name,
+      customer_phone,
+      customer_email,
+      order_type,
+      items_summary,
+      delivery_date,
+      delivery_location,
+      budget,
+      total_amount,
+      product_subtotal: reqSubtotal,
+      service_charge: reqServiceCharge,
+      logistics_charge: reqLogisticsCharge,
+      notes,
+    } = req.body;
+
+    if (!customer_name || !customer_phone) {
+      return res.status(400).json({ error: 'Customer name and phone number are required.' });
+    }
+
+    const orderId = `ord-${Math.floor(1000 + Math.random() * 9000)}`;
+    const product_subtotal = reqSubtotal !== undefined ? Number(reqSubtotal) : (total_amount ? Number(total_amount) : 0);
+    const service_charge = reqServiceCharge !== undefined ? Number(reqServiceCharge) : Math.round(product_subtotal * 0.20);
+    const logistics_charge = reqLogisticsCharge !== undefined ? Number(reqLogisticsCharge) : 0;
+    const total_payable = product_subtotal + service_charge + logistics_charge;
+
+    const newOrder: Order = {
+      id: orderId,
+      customer_id: `cust-${Date.now()}`,
+      customer_name,
+      customer_phone,
+      customer_email: customer_email || '',
+      order_type: order_type || 'Catering / Menu Order',
+      items_summary: items_summary || 'Custom Selection',
+      delivery_date: delivery_date || 'To be confirmed',
+      delivery_location: delivery_location || 'Customer Address',
+      quantity: req.body.quantity || 'Standard',
+      budget: budget || (total_payable ? `₦${total_payable.toLocaleString()}` : 'Standard'),
+      product_subtotal,
+      service_charge,
+      logistics_charge,
+      total_payable,
+      total_amount: total_payable,
+      payment_requirement: 'FULL_PAYMENT',
+      pricing_notice: 'Please note: Stated product prices do not include service and logistics charges. Service charge is 20% of product subtotal. Full payment confirms order.',
+      status: 'New',
+      payment_status: 'Unpaid',
+      notes: notes || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await saveOrder(newOrder);
+
+    // Send Email Notification
+    sendBusinessNotificationEmail({
+      subject: `New Order #${newOrder.id} Placed by ${customer_name}`,
+      headline: `New Catering Order Placed`,
+      badgeText: 'New Order Received',
+      detailsHtml: `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold; width: 35%;">Order ID:</td>
+            <td style="padding: 8px 0; color: #FDF8F2; font-family: monospace;">${newOrder.id}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Customer Name:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${customer_name}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Customer Phone:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;"><a href="tel:${customer_phone}" style="color: #D4AF37; text-decoration: none;">${customer_phone}</a></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Items / Menu:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newOrder.items_summary}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Delivery Date:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newOrder.delivery_date}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Delivery Location:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">${newOrder.delivery_location}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Product Subtotal:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">₦${(newOrder.product_subtotal || 0).toLocaleString()}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Service Charge (20%):</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">₦${(newOrder.service_charge || 0).toLocaleString()}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Logistics Charge:</td>
+            <td style="padding: 8px 0; color: #FDF8F2;">₦${(newOrder.logistics_charge || 0).toLocaleString()}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
+            <td style="padding: 8px 0; color: #D4AF37; font-weight: bold;">Total Payable:</td>
+            <td style="padding: 8px 0; color: #4ADE80; font-weight: bold; font-size: 16px;">₦${Number(newOrder.total_payable || 0).toLocaleString()}</td>
+          </tr>
+        </table>
+        <div style="margin-top: 12px; font-size: 11px; color: #D4AF37; font-style: italic;">
+          * Full payment is required to confirm this order.
+        </div>
+      `,
+      plainText: `New Order #${newOrder.id}\nCustomer: ${customer_name}\nPhone: ${customer_phone}\nItems: ${newOrder.items_summary}\nSubtotal: ₦${newOrder.product_subtotal?.toLocaleString()}\nService Charge (20%): ₦${newOrder.service_charge?.toLocaleString()}\nLogistics: ₦${newOrder.logistics_charge?.toLocaleString()}\nTotal Payable: ₦${newOrder.total_payable?.toLocaleString()}`,
+    }).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      order: newOrder,
+      message: 'Order created successfully. Please submit full bank transfer payment to confirm your order.',
+      policy: 'FULL PAYMENT CONFIRMS ORDER. Stated product prices do not include service and logistics charges.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to create order' });
   }
 });
 
@@ -619,13 +1041,33 @@ app.get('/api/orders/track/:order_id', async (req: Request, res: Response) => {
 
     const orderNotifs = notifications.filter((n) => n.order_id === orderId);
 
-    const totalAmount = plan ? plan.total_amount : ('total_amount' in order && order.total_amount ? order.total_amount : 0);
+    const rawTotal = 'total_payable' in order && order.total_payable
+      ? order.total_payable
+      : ('total_amount' in order && order.total_amount
+        ? order.total_amount
+        : (plan ? plan.total_amount : 0));
+
+    const productSubtotal = 'product_subtotal' in order && order.product_subtotal !== undefined
+      ? order.product_subtotal
+      : Math.round(rawTotal / 1.2);
+
+    const serviceCharge = 'service_charge' in order && order.service_charge !== undefined
+      ? order.service_charge
+      : Math.round(productSubtotal * 0.20);
+
+    const logisticsCharge = 'logistics_charge' in order && order.logistics_charge !== undefined
+      ? order.logistics_charge
+      : 0;
+
+    const totalPayable = rawTotal || (productSubtotal + serviceCharge + logisticsCharge);
+
     const totalVerifiedPaid = orderSubmissions
       .filter((s) => s.status === 'Verified')
       .reduce((sum, s) => sum + s.amount_submitted, 0);
 
-    const outstandingBalance = Math.max(0, totalAmount - totalVerifiedPaid);
-    const paymentProgressPercent = totalAmount > 0 ? Math.min(100, Math.round((totalVerifiedPaid / totalAmount) * 100)) : (order.payment_status === 'Paid' || order.payment_status === 'Verified' ? 100 : 0);
+    const outstandingBalance = Math.max(0, totalPayable - totalVerifiedPaid);
+    const isFullyPaid = totalPayable > 0 && totalVerifiedPaid >= totalPayable;
+    const paymentProgressPercent = totalPayable > 0 ? Math.min(100, Math.round((totalVerifiedPaid / totalPayable) * 100)) : (order.payment_status === 'Paid' || order.payment_status === 'Verified' ? 100 : 0);
 
     res.json({
       order,
@@ -633,11 +1075,26 @@ app.get('/api/orders/track/:order_id', async (req: Request, res: Response) => {
       installments: orderInstallments,
       payment_submissions: orderSubmissions,
       notifications: orderNotifs,
+      pricing_breakdown: {
+        product_subtotal: productSubtotal,
+        service_charge: serviceCharge,
+        service_charge_percent: 20,
+        logistics_charge: logisticsCharge,
+        total_payable: totalPayable,
+        stated_prices_notice: 'Please note: Stated product prices do not include service and logistics charges.',
+        payment_policy_notice: 'FULL PAYMENT CONFIRMS ORDER. Full payment is required before culinary preparation and event dispatch.',
+      },
       summary: {
-        total_amount: totalAmount,
+        total_amount: totalPayable,
+        total_payable: totalPayable,
+        product_subtotal: productSubtotal,
+        service_charge: serviceCharge,
+        logistics_charge: logisticsCharge,
         total_verified_paid: totalVerifiedPaid,
         outstanding_balance: outstandingBalance,
+        is_fully_paid: isFullyPaid,
         payment_progress_percent: paymentProgressPercent,
+        policy_notice: 'Full payment confirms order.',
         bank_details: {
           account_name: 'Ama Chioma Gloria',
           bank: 'Access Bank',
@@ -701,7 +1158,7 @@ app.put('/api/payment-submissions/:id/verify', requireAdmin, async (req: Request
       }
     }
 
-    // Recalculate order status
+    // Recalculate order status: FULL PAYMENT CONFIRMS ORDER
     const orders = await getOrders();
     const enquiries = await getEnquiries();
     const plans = await getPaymentPlans();
@@ -712,17 +1169,19 @@ app.put('/api/payment-submissions/:id/verify', requireAdmin, async (req: Request
     const allVerifiedSubs = (await getPaymentSubmissions()).filter((s) => s.order_id === orderId && s.status === 'Verified');
     const totalPaid = allVerifiedSubs.reduce((sum, s) => sum + s.amount_submitted, 0);
 
-    let targetTotal = order?.total_amount || plan?.total_amount || 0;
+    const targetTotal = order?.total_payable || order?.total_amount || plan?.total_amount || 0;
+    
     let newPaymentStatus: PaymentStatus = 'Partially Paid';
-    let newOrderStatus: OrderStatus = 'Confirmed';
+    let newOrderStatus: OrderStatus = 'Awaiting Payment';
 
+    // Business Rule: FULL PAYMENT CONFIRMS ORDER
     if (targetTotal > 0 && totalPaid >= targetTotal) {
       newPaymentStatus = 'Verified';
       newOrderStatus = 'Confirmed';
       if (plan) await savePaymentPlan({ ...plan, status: 'Completed', updated_at: new Date().toISOString() });
     } else if (totalPaid > 0) {
       newPaymentStatus = 'Partially Paid';
-      newOrderStatus = 'Confirmed';
+      newOrderStatus = 'Payment Verification'; // Remains in verification until 100% full payment
     }
 
     if (order) {

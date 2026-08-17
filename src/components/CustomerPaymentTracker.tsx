@@ -265,132 +265,115 @@ export const CustomerPaymentTracker: React.FC<CustomerPaymentTrackerProps> = ({ 
             </div>
           </div>
 
-          {/* Section 8 Requirement: Installment Payment Plan Display */}
-          {plan ? (
-            <div className="bg-[#180608] border border-[#D4AF37]/30 rounded-2xl p-6 md:p-8 space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#D4AF37]/20">
-                <div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30 mb-2">
-                    <Sparkles className="w-3.5 h-3.5" /> Approved Volume Buyer Plan
-                  </span>
-                  <h3 className="text-xl font-serif text-[#FDF8F2]">Your Volume Payment Schedule</h3>
-                  <p className="text-xs text-[#FDF8F2]/70">Approved arrangement for eligible volume buyer orders</p>
-                </div>
-
-                <button
-                  onClick={() => openSubmitFormForInstallment()}
-                  className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#AA7C11] text-[#120305] font-bold text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 shrink-0"
-                >
-                  <CreditCard className="w-4 h-4" />
-                  <span>Submit Payment / Transfer Proof</span>
-                </button>
+          {/* Pricing Breakdown & Full Payment Policy Section */}
+          <div className="bg-[#180608] border border-[#D4AF37]/30 rounded-2xl p-6 md:p-8 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#D4AF37]/20">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30 mb-2">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Full Payment Confirms Order
+                </span>
+                <h3 className="text-xl font-serif text-[#FDF8F2]">Order Pricing Breakdown & Payment Summary</h3>
+                <p className="text-xs text-[#FDF8F2]/70">
+                  Please note: Stated product prices do not include service and logistics charges.
+                </p>
               </div>
 
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-[#120305] p-4 rounded-xl border border-[#D4AF37]/20">
-                  <span className="text-xs text-[#FDF8F2]/60 block uppercase font-medium">Total Order</span>
-                  <p className="text-lg font-bold text-[#FDF8F2] mt-0.5">₦{(summary?.total_amount || plan.total_amount).toLocaleString()}</p>
-                </div>
+              <button
+                onClick={() => openSubmitFormForInstallment()}
+                className="px-5 py-2.5 bg-[#D4AF37] hover:bg-[#AA7C11] text-[#120305] font-bold text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 shrink-0"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Submit Bank Transfer Proof</span>
+              </button>
+            </div>
 
-                <div className="bg-[#120305] p-4 rounded-xl border border-emerald-500/20">
-                  <span className="text-xs text-emerald-400 block uppercase font-medium">Amount Paid</span>
-                  <p className="text-lg font-bold text-emerald-300 mt-0.5">₦{(summary?.total_verified_paid || 0).toLocaleString()}</p>
-                </div>
-
-                <div className="bg-[#120305] p-4 rounded-xl border border-amber-500/20">
-                  <span className="text-xs text-amber-400 block uppercase font-medium">Outstanding Balance</span>
-                  <p className="text-lg font-bold text-amber-300 mt-0.5">₦{(summary?.outstanding_balance || 0).toLocaleString()}</p>
-                </div>
-
-                <div className="bg-[#120305] p-4 rounded-xl border border-[#D4AF37]/20">
-                  <span className="text-xs text-[#D4AF37] block uppercase font-medium">Payment Progress</span>
-                  <p className="text-lg font-bold text-[#D4AF37] mt-0.5">{summary?.payment_progress_percent || 0}%</p>
-                </div>
+            {/* Pricing Formula Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-[#120305] p-4 rounded-xl border border-[#D4AF37]/20">
+                <span className="text-xs text-[#FDF8F2]/60 block uppercase font-medium">Product Subtotal</span>
+                <p className="text-lg font-bold text-[#FDF8F2] mt-0.5">
+                  ₦{(summary?.product_subtotal || Math.round((summary?.total_payable || summary?.total_amount || 0) / 1.2)).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-[#FDF8F2]/50 block mt-1">Culinary item pricing</span>
               </div>
 
-              {/* Progress Bar */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-[#FDF8F2]/70">
-                  <span>Verified Progress</span>
-                  <span>{summary?.payment_progress_percent || 0}% Complete</span>
-                </div>
-                <div className="w-full bg-[#120305] h-3 rounded-full overflow-hidden border border-[#D4AF37]/20">
-                  <div
-                    className="bg-gradient-to-r from-[#D4AF37] to-emerald-400 h-full transition-all duration-500"
-                    style={{ width: `${summary?.payment_progress_percent || 0}%` }}
-                  />
-                </div>
+              <div className="bg-[#120305] p-4 rounded-xl border border-[#D4AF37]/20">
+                <span className="text-xs text-[#D4AF37] block uppercase font-medium">Service Charge (20%)</span>
+                <p className="text-lg font-bold text-[#D4AF37] mt-0.5">
+                  ₦{(summary?.service_charge || Math.round((summary?.product_subtotal || Math.round((summary?.total_payable || summary?.total_amount || 0) / 1.2)) * 0.20)).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-[#D4AF37]/70 block mt-1">Standard service rate</span>
               </div>
 
-              {/* Installment Breakdown Table */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#D4AF37]">Installment Schedule</h4>
-                <div className="overflow-x-auto rounded-xl border border-[#D4AF37]/20">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-[#120305] text-[#D4AF37] text-xs uppercase font-bold border-b border-[#D4AF37]/20">
-                      <tr>
-                        <th className="p-3.5">Installment #</th>
-                        <th className="p-3.5">Amount</th>
-                        <th className="p-3.5">Due Date</th>
-                        <th className="p-3.5">Status</th>
-                        <th className="p-3.5 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#D4AF37]/10 bg-[#1A0507]">
-                      {installments.map((inst) => (
-                        <tr key={inst.id} className="hover:bg-white/5 transition-colors">
-                          <td className="p-3.5 font-bold text-[#FDF8F2]">Installment #{inst.installment_number}</td>
-                          <td className="p-3.5 font-semibold text-[#D4AF37]">₦{inst.amount.toLocaleString()}</td>
-                          <td className="p-3.5 text-xs text-[#FDF8F2]/80">{inst.due_date}</td>
-                          <td className="p-3.5">{getPaymentStatusBadge(inst.payment_status)}</td>
-                          <td className="p-3.5 text-right">
-                            {inst.payment_status !== 'Verified' && inst.payment_status !== 'Under Review' ? (
-                              <button
-                                onClick={() => openSubmitFormForInstallment(inst)}
-                                className="px-3 py-1.5 bg-[#D4AF37]/20 hover:bg-[#D4AF37] text-[#D4AF37] hover:text-[#120305] font-bold text-xs rounded-lg border border-[#D4AF37]/40 transition-all"
-                              >
-                                Submit Transfer
-                              </button>
-                            ) : inst.payment_status === 'Under Review' ? (
-                              <span className="text-xs text-amber-400 font-medium italic">In Review</span>
-                            ) : (
-                              <span className="text-xs text-emerald-400 font-bold">Verified</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="bg-[#120305] p-4 rounded-xl border border-[#D4AF37]/20">
+                <span className="text-xs text-[#FDF8F2]/60 block uppercase font-medium">Logistics / Transport</span>
+                <p className="text-lg font-bold text-[#FDF8F2] mt-0.5">
+                  ₦{(summary?.logistics_charge || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-[#FDF8F2]/50 block mt-1">Distance calculated</span>
+              </div>
+
+              <div className="bg-[#120305] p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/20">
+                <span className="text-xs text-emerald-400 block uppercase font-bold">Total Payable</span>
+                <p className="text-lg font-bold text-emerald-300 mt-0.5">
+                  ₦{(summary?.total_payable || summary?.total_amount || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-emerald-400/80 block mt-1">Subtotal + Service + Logistics</span>
               </div>
             </div>
-          ) : (
-            /* Standard Payment Policy Notice */
-            <div className="bg-[#180608] border border-[#D4AF37]/20 rounded-2xl p-6 space-y-4">
-              <div className="flex items-start gap-3">
-                <Info className="w-5 h-5 text-[#D4AF37] shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h4 className="font-bold text-[#D4AF37] text-sm uppercase tracking-wide">Standard Order Payment Requirement</h4>
-                  <p className="text-sm text-[#FDF8F2]/80 leading-relaxed">
-                    To confirm your order and secure your delivery slot, full payment is required before delivery. We currently do not offer credit arrangements.
-                  </p>
-                </div>
+
+            {/* Payment Verification Status Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div className="bg-[#120305] p-4 rounded-xl border border-emerald-500/20">
+                <span className="text-xs text-emerald-400 block uppercase font-medium">Verified Paid</span>
+                <p className="text-lg font-bold text-emerald-300 mt-0.5">
+                  ₦{(summary?.total_verified_paid || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-emerald-400/70 block mt-1">Confirmed by Finance</span>
               </div>
 
-              <div className="pt-3 border-t border-[#D4AF37]/10 flex flex-wrap gap-3 items-center justify-between">
-                <div className="text-xs text-[#FDF8F2]/60">
-                  Total Order Value: <span className="font-bold text-[#FDF8F2]">₦{(summary?.total_amount || 0).toLocaleString()}</span>
-                </div>
-                <button
-                  onClick={() => openSubmitFormForInstallment()}
-                  className="px-5 py-2 bg-[#D4AF37] hover:bg-[#AA7C11] text-[#120305] font-bold text-xs uppercase tracking-widest rounded-xl transition-all"
-                >
-                  Submit Payment Proof
-                </button>
+              <div className="bg-[#120305] p-4 rounded-xl border border-amber-500/20">
+                <span className="text-xs text-amber-400 block uppercase font-medium">Outstanding Balance</span>
+                <p className="text-lg font-bold text-amber-300 mt-0.5">
+                  ₦{(summary?.outstanding_balance || 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-amber-400/70 block mt-1">Full payment required</span>
+              </div>
+
+              <div className="bg-[#120305] p-4 rounded-xl border border-[#D4AF37]/20">
+                <span className="text-xs text-[#D4AF37] block uppercase font-medium">Payment Progress</span>
+                <p className="text-lg font-bold text-[#D4AF37] mt-0.5">{summary?.payment_progress_percent || 0}%</p>
+                <span className="text-[10px] text-[#D4AF37]/70 block mt-1">
+                  {summary?.is_fully_paid ? 'Order Confirmed' : 'Pending Full Settlement'}
+                </span>
               </div>
             </div>
-          )}
+
+            {/* Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-semibold text-[#FDF8F2]/70">
+                <span>Payment Settlement Progress</span>
+                <span>{summary?.payment_progress_percent || 0}% Complete</span>
+              </div>
+              <div className="w-full bg-[#120305] h-3 rounded-full overflow-hidden border border-[#D4AF37]/20">
+                <div
+                  className="bg-gradient-to-r from-[#D4AF37] to-emerald-400 h-full transition-all duration-500"
+                  style={{ width: `${summary?.payment_progress_percent || 0}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Strict Payment Notice */}
+            <div className="p-4 bg-[#120305] rounded-xl border border-[#D4AF37]/30 flex items-start gap-3 text-xs text-[#FDF8F2]/85">
+              <Info className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-[#D4AF37] font-semibold block mb-0.5">Official Policy: Full Payment Confirms Order</strong>
+                <span>
+                  Please note: Stated product prices do not include service and logistics charges. A 20% service charge applies to the product subtotal. Transportation and logistics charges depend on delivery distance. Full payment is required before your order is scheduled into our culinary production calendar.
+                </span>
+              </div>
+            </div>
+          </div>
 
           {/* Bank Transfer Details Section (Method B) */}
           <div className="bg-[#1A0507] border border-[#D4AF37]/30 rounded-2xl p-6 space-y-4">

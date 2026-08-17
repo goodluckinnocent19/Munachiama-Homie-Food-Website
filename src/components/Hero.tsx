@@ -28,9 +28,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenEnquiryModal, onExploreMenu })
 
             {/* Headline */}
             <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl font-light text-[#FDF8F2] tracking-tight leading-[0.95]">
-              Taste the Moment.{' '}
+              Naturally Refined.{' '}
               <span className="block font-serif text-[#D4AF37] italic mt-2 font-normal">
-                Celebrate Beautifully.
+                Beautifully Served.
               </span>
             </h1>
 

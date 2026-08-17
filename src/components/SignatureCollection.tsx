@@ -20,6 +20,8 @@ export const SignatureCollection: React.FC<SignatureCollectionProps> = ({ produc
     { slug: 'mocktails-cocktails', label: 'Mocktails & Cocktails' },
     { slug: 'parfaits', label: 'Parfaits' },
     { slug: 'healthy-salads', label: 'Salads' },
+    { slug: 'chicken-wrap', label: 'Chicken Wrap' },
+    { slug: 'sandwiches', label: 'Sandwiches' },
     { slug: 'luxury-gifting', label: 'Luxury Gifting' },
   ];
 

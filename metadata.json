@@ -1,6 +1,6 @@
 {
   "name": "Munachiama | Chiama21 Hommie Foods",
-  "description": "Premium taste, beautifully crafted food, natural drinks, small chops, parfaits & luxury hampers.",
+  "description": "Naturally Refined. Beautifully Served. Natural drinks, gourmet small chops, parfaits & luxury hampers.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -74,10 +74,10 @@ export const PaymentOptionsSection: React.FC<PaymentOptionsSectionProps> = ({ on
             </div>
           </div>
 
-          {/* Option 2: Volume Buyer Installment Plan */}
+          {/* Option 2: Corporate & Large Event Catering */}
           <div className="bg-gradient-to-br from-[#1E080B] to-[#140406] border border-[#D4AF37]/40 rounded-3xl p-8 space-y-6 flex flex-col justify-between hover:border-[#D4AF37] transition-all shadow-2xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 bg-[#D4AF37] text-[#120305] text-[10px] font-extrabold uppercase px-4 py-1.5 rounded-bl-2xl tracking-widest">
-              Eligible Volume Orders
+              Corporate & Events
             </div>
 
             <div className="space-y-4">
@@ -86,31 +86,31 @@ export const PaymentOptionsSection: React.FC<PaymentOptionsSectionProps> = ({ on
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <span className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] bg-[#D4AF37]/20 px-3 py-1 rounded-full border border-[#D4AF37]/30">
-                  Volume Buyers
+                  Bulk Orders
                 </span>
               </div>
 
-              <h3 className="text-2xl font-serif text-[#FDF8F2]">Volume Buyer Installment Payment Plan</h3>
+              <h3 className="text-2xl font-serif text-[#FDF8F2]">Corporate & Event Catering Invoicing</h3>
 
               <div className="p-4 bg-[#120305] rounded-2xl border border-[#D4AF37]/30 space-y-2">
-                <h4 className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider">Flexible Payment Arrangement for Volume Orders</h4>
+                <h4 className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider">Official Invoicing & Direct Bank Transfer</h4>
                 <p className="text-sm text-[#FDF8F2]/90 leading-relaxed font-medium">
-                  "Volume buyers may be eligible for a customized installment payment arrangement. Availability and payment terms are subject to approval and will be communicated directly by our team."
+                  "For large event catering and corporate bulk orders, we provide itemized official invoices, dedicated event coordination, and official payment receipts upon full payment verification before delivery."
                 </p>
               </div>
 
               <ul className="space-y-2 text-xs text-[#FDF8F2]/80">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
-                  <span>Customized schedule tailored for corporate & large event orders</span>
+                  <span>Itemized corporate invoices & official branded receipts</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
-                  <span>Configured & managed by Munachiama finance team</span>
+                  <span>Direct bank transfer with rapid admin verification</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
-                  <span>Full payment tracking dashboard for each installment</span>
+                  <span>Dedicated event manager & live station coordination</span>
                 </li>
               </ul>
             </div>
@@ -118,11 +118,11 @@ export const PaymentOptionsSection: React.FC<PaymentOptionsSectionProps> = ({ on
             <div className="pt-4 border-t border-[#D4AF37]/20 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
-                  if (onOpenEnquiry) onOpenEnquiry('Volume Buyer Installment Plan');
+                  if (onOpenEnquiry) onOpenEnquiry('Corporate & Event Catering');
                 }}
                 className="flex-1 py-3 px-4 bg-gradient-to-r from-[#D4AF37] to-[#AA7C11] hover:brightness-110 text-[#120305] font-bold text-xs uppercase tracking-widest rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-lg"
               >
-                <span>Enquire About Volume Payment Plan</span>
+                <span>Request Corporate Event Quote</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

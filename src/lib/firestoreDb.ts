@@ -32,12 +32,56 @@ import {
   DEFAULT_BUSINESS_SETTINGS,
 } from '../data/initialData';
 
+export function formatStorageErrorMessage(err: any): string {
+  const code = err?.code || '';
+  const msg = err?.message || '';
+
+  if (code === 'storage/unauthorized') {
+    return 'Firebase Storage permission denied (storage/unauthorized). Please verify Firebase Storage Security Rules.';
+  }
+  if (code === 'storage/unauthenticated') {
+    return 'Firebase Storage user unauthenticated (storage/unauthenticated).';
+  }
+  if (code === 'storage/quota-exceeded') {
+    return 'Firebase Storage quota exceeded (storage/quota-exceeded).';
+  }
+  if (code === 'storage/invalid-argument') {
+    return 'Invalid file argument provided to Firebase Storage (storage/invalid-argument).';
+  }
+  if (code === 'storage/object-not-found') {
+    return 'Firebase Storage object not found (storage/object-not-found).';
+  }
+  if (code === 'storage/retry-limit-exceeded') {
+    return 'Firebase Storage operation timed out (storage/retry-limit-exceeded). Please try again.';
+  }
+  if (code === 'storage/unknown' || err?.status_ === 404) {
+    return "Firebase Storage error (storage/unknown, HTTP 404). Please verify that Cloud Storage is enabled in Firebase Console for project 'centering-sequence-vf6jr' and VITE_FIREBASE_STORAGE_BUCKET is set to 'centering-sequence-vf6jr.firebasestorage.app'.";
+  }
+  return `Firebase Storage Error (${code || 'unknown'}): ${msg}`;
+}
+
 export async function uploadStorageImage(file: File): Promise<string> {
-  const filename = `products/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  if (!allowedTypes.includes(file.type.toLowerCase())) {
+    throw new Error('Unsupported image format. Please select JPG, JPEG, PNG, or WEBP file.');
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error(`File size (${(file.size / (1024 * 1024)).toFixed(2)}MB) exceeds 5MB limit.`);
+  }
+
+  const sanitized = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const filename = `products/${Date.now()}-${Math.random().toString(36).substring(2, 10)}-${sanitized}`;
   const storageRef = ref(storage, filename);
-  const snapshot = await uploadBytes(storageRef, file);
-  const downloadUrl = await getDownloadURL(snapshot.ref);
-  return downloadUrl;
+
+  try {
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+    return downloadUrl;
+  } catch (err: any) {
+    console.error('[Firebase Storage Client Upload Error]:', err);
+    throw new Error(formatStorageErrorMessage(err));
+  }
 }
 
 let isSeeded = false;
@@ -92,9 +136,14 @@ const initialOrders: Order[] = [
     delivery_location: 'Ikoyi, Lagos',
     quantity: '20 Hampers',
     budget: '₦1,300,000',
+    product_subtotal: 1000000,
+    service_charge: 200000, // 20%
+    logistics_charge: 100000,
     total_amount: 1300000,
+    total_payable: 1300000,
     status: 'Confirmed',
     payment_status: 'Verified',
+    payment_requirement: 'FULL_PAYMENT',
     notes: 'Full payment verified via Access Bank transfer. Include gold ribbon packaging.',
     created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
     updated_at: new Date().toISOString(),
@@ -102,7 +151,7 @@ const initialOrders: Order[] = [
   {
     id: 'ord-5002',
     customer_id: 'cust-2',
-    customer_name: 'Dr. Chidi Okafor (Corporate Volume)',
+    customer_name: 'Dr. Chidi Okafor (Corporate Catering)',
     customer_phone: '+234 802 987 6543',
     customer_email: 'chidi.okafor@corporategroup.ng',
     order_type: 'corporate',
@@ -111,95 +160,37 @@ const initialOrders: Order[] = [
     delivery_location: 'Victoria Island, Lagos',
     quantity: '150 Persons',
     budget: '₦1,200,000',
+    product_subtotal: 950000,
+    service_charge: 190000, // 20%
+    logistics_charge: 60000,
     total_amount: 1200000,
-    status: 'Awaiting Payment',
-    payment_status: 'Partially Paid',
-    payment_plan_id: 'plan-1002',
-    notes: 'Approved Volume Buyer 3-Part Installment Plan.',
+    total_payable: 1200000,
+    status: 'Payment Verification',
+    payment_status: 'Under Review',
+    payment_requirement: 'FULL_PAYMENT',
+    notes: 'Awaiting admin verification of full direct bank transfer before order confirmation.',
     created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     updated_at: new Date().toISOString(),
   },
 ];
 
-const initialPlans: PaymentPlan[] = [
-  {
-    id: 'plan-1002',
-    order_id: 'ord-5002',
-    customer_name: 'Dr. Chidi Okafor',
-    customer_phone: '+234 802 987 6543',
-    customer_email: 'chidi.okafor@corporategroup.ng',
-    plan_type: 'Volume Installment',
-    total_amount: 1200000,
-    number_of_installments: 3,
-    status: 'Active',
-    approved_by: 'ChiamaAdmin',
-    approved_at: new Date(Date.now() - 86400000).toISOString(),
-    notes: '3 Equal Installments of ₦400,000 per milestone.',
-    payment_instructions: 'Pay into Access Bank Account: Ama Chioma Gloria (0093177004). Quote Order ID ord-5002.',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+const initialPlans: PaymentPlan[] = [];
 
-const initialInstallments: Installment[] = [
-  {
-    id: 'inst-1002-1',
-    payment_plan_id: 'plan-1002',
-    order_id: 'ord-5002',
-    installment_number: 1,
-    amount: 400000,
-    due_date: '2026-08-10',
-    payment_status: 'Verified',
-    paid_at: new Date(Date.now() - 86400000).toISOString(),
-    payment_reference: 'ACC-TRF-982144',
-    verified_by: 'ChiamaAdmin',
-    verification_date: new Date(Date.now() - 86400000).toISOString(),
-    notes: 'Initial 33% deposit verified.',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'inst-1002-2',
-    payment_plan_id: 'plan-1002',
-    order_id: 'ord-5002',
-    installment_number: 2,
-    amount: 400000,
-    due_date: '2026-08-20',
-    payment_status: 'Under Review',
-    payment_reference: 'ACC-TRF-991042',
-    notes: 'Customer submitted transfer reference for second milestone.',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'inst-1002-3',
-    payment_plan_id: 'plan-1002',
-    order_id: 'ord-5002',
-    installment_number: 3,
-    amount: 400000,
-    due_date: '2026-08-27',
-    payment_status: 'Pending',
-    notes: 'Final installment prior to event delivery.',
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+const initialInstallments: Installment[] = [];
 
 const initialSubmissions: PaymentSubmission[] = [
   {
     id: 'sub-3001',
     order_id: 'ord-5002',
-    installment_id: 'inst-1002-2',
-    payment_plan_id: 'plan-1002',
     customer_name: 'Dr. Chidi Okafor',
     customer_phone: '+234 802 987 6543',
     payment_method: 'Bank Transfer',
-    amount_expected: 400000,
-    amount_submitted: 400000,
+    amount_expected: 1200000,
+    amount_submitted: 1200000,
     payment_reference: 'ACC-TRF-991042',
     bank_name: 'Access Bank',
     payment_date: new Date().toISOString().split('T')[0],
-    notes: 'Transfer made from Access Bank app to Ama Chioma Gloria (0093177004).',
+    notes: 'Full payment transfer made from Access Bank app to Ama Chioma Gloria (0093177004).',
     status: 'Under Review',
     created_at: new Date().toISOString(),
   },
@@ -209,25 +200,67 @@ export async function ensureDatabaseSeeded(): Promise<void> {
   if (isSeeded) return;
 
   try {
-    const prodSnap = await getDocs(query(collection(db, 'products'), limit(1)));
-    if (prodSnap.empty) {
-      console.log('[Firestore] Empty database detected. Seeding initial records to Firestore...');
-      for (const p of INITIAL_PRODUCTS) await setDoc(doc(db, 'products', p.id), p);
-      for (const c of INITIAL_CATEGORIES) await setDoc(doc(db, 'categories', c.id), c);
-      for (const g of INITIAL_GALLERY) await setDoc(doc(db, 'gallery', g.id), g);
-      for (const f of INITIAL_FAQS) await setDoc(doc(db, 'faqs', f.id), f);
-      await setDoc(doc(db, 'business_settings', 'default'), DEFAULT_BUSINESS_SETTINGS);
-      for (const e of initialEnquiries) await setDoc(doc(db, 'enquiries', e.id), e);
-      for (const o of initialOrders) await setDoc(doc(db, 'orders', o.id), o);
-      for (const p of initialPlans) await setDoc(doc(db, 'payment_plans', p.id), p);
-      for (const inst of initialInstallments) await setDoc(doc(db, 'installments', inst.id), inst);
-      for (const s of initialSubmissions) await setDoc(doc(db, 'payment_submissions', s.id), s);
-      console.log('[Firestore] Database initial seeding completed successfully.');
+    // Seed Business Settings if missing (without overwriting if already set by admin)
+    const settingsRef = doc(db, 'business_settings', 'default');
+    const settingsSnap = await getDoc(settingsRef).catch(() => null);
+    if (!settingsSnap || !settingsSnap.exists()) {
+      await setDoc(settingsRef, DEFAULT_BUSINESS_SETTINGS).catch(() => {});
     }
+
+    // Check products
+    const prodSnap = await getDocs(query(collection(db, 'products'), limit(1))).catch(() => null);
+    if (!prodSnap || prodSnap.empty) {
+      console.log('[Firestore] Initializing default products...');
+      for (const p of INITIAL_PRODUCTS) {
+        await setDoc(doc(db, 'products', p.id), p).catch(() => {});
+      }
+    }
+
+    // Check categories
+    const catSnap = await getDocs(query(collection(db, 'categories'), limit(1))).catch(() => null);
+    if (!catSnap || catSnap.empty) {
+      for (const c of INITIAL_CATEGORIES) {
+        await setDoc(doc(db, 'categories', c.id), c).catch(() => {});
+      }
+    }
+
+    // Check gallery
+    const galSnap = await getDocs(query(collection(db, 'gallery'), limit(1))).catch(() => null);
+    if (!galSnap || galSnap.empty) {
+      for (const g of INITIAL_GALLERY) {
+        await setDoc(doc(db, 'gallery', g.id), g).catch(() => {});
+      }
+    }
+
+    // Check faqs
+    const faqSnap = await getDocs(query(collection(db, 'faqs'), limit(1))).catch(() => null);
+    if (!faqSnap || faqSnap.empty) {
+      for (const f of INITIAL_FAQS) {
+        await setDoc(doc(db, 'faqs', f.id), f).catch(() => {});
+      }
+    }
+
+    // Check orders
+    const ordSnap = await getDocs(query(collection(db, 'orders'), limit(1))).catch(() => null);
+    if (!ordSnap || ordSnap.empty) {
+      for (const o of initialOrders) {
+        await setDoc(doc(db, 'orders', o.id), o).catch(() => {});
+      }
+    }
+
+    // Check enquiries
+    const enqSnap = await getDocs(query(collection(db, 'enquiries'), limit(1))).catch(() => null);
+    if (!enqSnap || enqSnap.empty) {
+      for (const e of initialEnquiries) {
+        await setDoc(doc(db, 'enquiries', e.id), e).catch(() => {});
+      }
+    }
+
     isSeeded = true;
   } catch (err) {
     console.error('[Firestore Seed Error]:', err);
-    throw err;
+    // Do not throw to avoid crashing app requests if seed check encounters a transient network issue
+    isSeeded = true;
   }
 }
 
@@ -276,6 +309,13 @@ export async function getCategories(): Promise<Category[]> {
   const snap = await getDocs(collection(db, 'categories'));
   const list: Category[] = [];
   snap.forEach((d) => list.push(d.data() as Category));
+
+  for (const initCat of INITIAL_CATEGORIES) {
+    if (!list.some((c) => c.slug === initCat.slug || c.id === initCat.id)) {
+      list.push(initCat);
+      setDoc(doc(db, 'categories', initCat.id), initCat).catch(() => {});
+    }
+  }
   return list;
 }
 
